@@ -5,9 +5,6 @@ st.title("Welcome to the Palu movie recommender!")
 
 highest_id = 943
 uid = st.number_input("Please enter your User ID:", 1, highest_id, None)
-
-if uid == None:
-  st.button("Sign up")
   
 if uid is not None:
   rec = st.selectbox("Pick type of recommendation", ["Demographic", "Based on content", "Collaborative", "Hybrid"])
