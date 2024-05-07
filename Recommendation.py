@@ -1,6 +1,10 @@
+
+# Para iniciar: python -m streamlit run Recommendation.py
+
 import streamlit as st
 import pandas as pd
 from streamlit_card import card
+import numpy as np
 
 class Genre:
     def __init__(self, genre_id, genre_name):
@@ -26,54 +30,92 @@ class Rating:
         self.movie_id = movie_id
         self.rating = rating
 
+class User_type:
+    def __init__(self, type_id, min_age, max_age, gender, occupation, genres):
+        self.type_id = type_id
+        self.min_age = min_age
+        self.max_age = max_age
+        self.gender = gender
+        self.occupation = occupation
+        self.genres = genres
+
 # Cargar datos de genre.txt
-genre_data = pd.read_csv("genre.txt", sep='\t', names=['GenreID', 'GenreName'], encoding="utf-8")
+genre_data = pd.read_csv("data/genre.txt", sep='\t', names=['GenreID', 'GenreName'], encoding="utf-8")
 genres = {row['GenreID']: Genre(row['GenreID'], row['GenreName']) for _, row in genre_data.iterrows()}
 
 # Cargar datos de items.txt
-items_data = pd.read_csv("items.txt", sep='\t', names=['MovieID'] + [f'Genre_{i}' for i in range(1, 20)] + ['TitleYear'], encoding="latin-1")
+items_data = pd.read_csv("data/items.txt", sep='\t', names=['MovieID'] + [f'Genre_{i}' for i in range(1, 20)] + ['TitleYear'], encoding="latin-1")
 movies = {row['MovieID']: Movie(row['MovieID'], row.iloc[1:20], row['TitleYear']) for _, row in items_data.iterrows()}
 
 # Cargar datos de users.txt
-users_data = pd.read_csv("users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
+users_data = pd.read_csv("data/users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
 users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occupation']) for _, row in users_data.iterrows()}
 
 # Cargar datos de u1_base.txt
-ratings_data = pd.read_csv("u1_base.txt", sep='\t', names=['UserID', 'MovieID', 'Rating'], encoding="utf-8")
+ratings_data = pd.read_csv("data/u1_base.txt", sep='\t', names=['UserID', 'MovieID', 'Rating'], encoding="utf-8")
 ratings = {(row['UserID'], row['MovieID']): Rating(row['UserID'], row['MovieID'], row['Rating']) for _, row in ratings_data.iterrows()}
+
+# Cargar datos de users_types.txt
+user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
+
+# Cargar datos de users_types_assigned.txt
+user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
+user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
+
 
 
 st.title("Welcome to the Palu movie recommender!")  
 
 highest_id = len(users)
 uid = st.number_input("Please enter your User ID:", 1, highest_id, None)
+
+rec_type = st.selectbox("Pick type of recommendation", ["Demographic", "Based on content", "Collaborative", "Hybrid"])
   
 if uid is not None:
-  rec = st.selectbox("Pick type of recommendation", ["Demographic", "Based on content", "Collaborative", "Hybrid"])
-  
+
   recommendations = []
+
   class Recommendation:
-      def __init__(self, title, ratio):
-          self.title = title
-          self.ratio = ratio
-  recommendations.append(Recommendation(movies[uid+0].title_year, 88))
-  recommendations.append(Recommendation(movies[uid+1].title_year, 90))
-  recommendations.append(Recommendation(movies[uid+2].title_year, 92))
-  
-  for i, e in enumerate(recommendations):
+        def __init__(self, movie, ratio):
+            self.movie = movie
+            self.ratio = ratio
+
+
+  #Recomendación Demográfica
+  if rec_type == "Demographic":
+    if uid in user_types_assigned:
+        type_id = user_types_assigned[uid]
+        user_type = user_types[type_id]
+        genre_weights = np.array(user_type.genres)  # Asumiendo que 'genres' es ya un array numérico
+        
+        # Calcular ratios para cada película
+        for movie_id, movie in movies.items():
+            movie_genres = np.array(movie.genres)  # Asumiendo que 'genres' es ya un array numérico
+            ratio = np.dot(genre_weights, movie_genres) / np.sum(genre_weights)  # Normalización por la suma de pesos
+            recommendations.append(Recommendation(movie, ratio))
+        
+        # Ordenar por ratio y obtener las 5 películas superiores
+        recommendations.sort(key=lambda x: x.ratio, reverse=True)
+
+        
+    
+    
+    
+  for i, r in enumerate(recommendations[:5]):
     card(
-      key="card" + str(i),
-      title=e.title,
-      text="Ratio: " + str(e.ratio),
+      key="Recommendation " + str(i),
+      title=r.movie.title_year,
+      text="Ratio: " + str(r.ratio),
       styles={
-        "card": {
-          "width": "700px",
-          "height": "150px",
-          "margin": "0px",
-          "box-shadow": "none",
+          "card": {
+            "width": "700px",
+            "height": "150px",
+            "margin": "0px",
+            "box-shadow": "none",
         },
-        "title": {
-          "font-size": "1.75em",
+          "title": {
+            "font-size": "1.75em",
         }
-      }
+      }  
     )
