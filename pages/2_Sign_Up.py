@@ -25,7 +25,7 @@ def signupuser(id, age, sex, occupation):
 
 
 st.title("Sign Up!")
-
+ 
 st.number_input("ID", value=user_id, disabled=True)
 
 age = st.slider("Age")
