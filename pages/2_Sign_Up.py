@@ -8,16 +8,16 @@ class User:
         self.gender = gender
         self.occupation = occupation
 
-users_data = pd.read_csv("users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
+users_data = pd.read_csv("data/users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
 users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occupation']) for _, row in users_data.iterrows()}
 user_id = len(users)+1
 
 
 def signupuser(id, age, sex, occupation):
     # Open the file in append mode
-    with open("users.txt", "a") as file:
+    with open("data/users.txt", "a") as file:
         file.write(f"\n{id}\t{age}\t{sex}\t{occupation}")
-        users_data = pd.read_csv("users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
+        users_data = pd.read_csv("data/users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
         users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occupation']) for _, row in users_data.iterrows()}
         user_id = len(users)+1
 

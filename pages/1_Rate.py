@@ -9,7 +9,7 @@ st.title("Rate movies!")
 movie_names = [movie.title_year for movie_id, movie in movies.items()]
 
 highest_id = len(users)
-user_id = st.number_input("Please enter your User ID:", 1, highest_id, None)
+user_id = st.number_input("Please enter your User ID:", 1, highest_id, None, key = "user_id_rating")
 
 if user_id is not None:
     movie_name = st.selectbox("Select the movie you would like to rate", movie_names)
