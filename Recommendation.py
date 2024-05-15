@@ -87,12 +87,23 @@ if uid is not None:
     if uid in user_types_assigned:
         type_id = user_types_assigned[uid]
         user_type = user_types[type_id]
-        genre_weights = np.array(user_type.genres)  # Asumiendo que 'genres' es ya un array numérico
+        genre_weights = np.array(user_type.genres)
         
         # Calcular ratios para cada película
         for movie_id, movie in movies.items():
-            movie_genres = np.array(movie.genres)  # Asumiendo que 'genres' es ya un array numérico
-            ratio = np.dot(genre_weights, movie_genres) / np.sum(genre_weights)  # Normalización por la suma de pesos
+            movie_genres = np.array(movie.genres)
+            
+            # normalization by sum of genre weights
+            normalization_factor = np.sum(genre_weights)
+            
+            # # normalization by sum of genre weights and sum of movie genres (pro: normalization not only by genre weights but also by movie genres; con: very low ratios)
+            # normalization_factor = np.sum(genre_weights) * np.sum(movie_genres)
+            
+            # # normalization by maximum scalar product (pro: normalization not only by genre weights but also by movie genres; con: a lot of movies with ratio 1)
+            # num_genres = np.sum(movie_genres)
+            # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
+
+            ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
             recommendations.append(Recommendation(movie, ratio))
         
         # Ordenar por ratio y obtener las 5 películas superiores
