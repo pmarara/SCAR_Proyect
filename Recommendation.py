@@ -94,21 +94,21 @@ if uid is not None:
         
         # Calcular ratios para cada película
         for movie_id, movie in movies.items():
-          if movie_id not in rated_movies:  # Check if user hasn't watched the movie
-            movie_genres = np.array(movie.genres)
-            
-            # normalization by sum of genre weights
-            normalization_factor = np.sum(genre_weights)
-            
-            # # normalization by sum of genre weights and sum of movie genres (pro: normalization not only by genre weights but also by movie genres; con: very low ratios)
-            # normalization_factor = np.sum(genre_weights) * np.sum(movie_genres)
-            
-            # # normalization by maximum scalar product (pro: normalization not only by genre weights but also by movie genres; con: a lot of movies with ratio 1)
-            # num_genres = np.sum(movie_genres)
-            # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
+            if movie_id not in rated_movies:  # Check if user hasn't watched the movie
+                movie_genres = np.array(movie.genres)
+                
+                # normalization by sum of genre weights
+                normalization_factor = np.sum(genre_weights)
+                
+                # # normalization by sum of genre weights and sum of movie genres (pro: normalization not only by genre weights but also by movie genres; con: very low ratios)
+                # normalization_factor = np.sum(genre_weights) * np.sum(movie_genres)
+                
+                # # normalization by maximum scalar product (pro: normalization not only by genre weights but also by movie genres; con: a lot of movies with ratio 1)
+                # num_genres = np.sum(movie_genres)
+                # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
 
-            ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
-            recommendations.append(Recommendation(movie, ratio))
+                ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
+                recommendations.append(Recommendation(movie, ratio))
         
         # Ordenar por ratio y obtener las 5 películas superiores
         recommendations.sort(key=lambda x: x.ratio, reverse=True)
