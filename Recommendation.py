@@ -89,8 +89,12 @@ if uid is not None:
         user_type = user_types[type_id]
         genre_weights = np.array(user_type.genres)
         
+        # Retrieve list of movies already rated by the user
+        rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
+        
         # Calcular ratios para cada película
         for movie_id, movie in movies.items():
+          if movie_id not in rated_movies:  # Check if user hasn't watched the movie
             movie_genres = np.array(movie.genres)
             
             # normalization by sum of genre weights
