@@ -1,15 +1,32 @@
 import streamlit as st
 import pandas as pd
 
+class Movie:
+    def __init__(self, movie_id, genres, title_year):
+        self.movie_id = movie_id
+        self.genres = genres
+        self.title_year = title_year
+
+class User:
+    def __init__(self, user_id, age, gender, occupation):
+        self.user_id = user_id
+        self.age = age
+        self.gender = gender
+        self.occupation = occupation
+
 class Rating:
     def __init__(self, user_id, movie_id, rating):
         self.user_id = user_id
         self.movie_id = movie_id
         self.rating = rating
+        
+# Cargar datos de items.txt
+items_data = pd.read_csv("data/items.txt", sep='\t', names=['MovieID'] + [f'Genre_{i}' for i in range(1, 20)] + ['TitleYear'], encoding="latin-1")
+movies = {row['MovieID']: Movie(row['MovieID'], row.iloc[1:20], row['TitleYear']) for _, row in items_data.iterrows()}
 
-import sys
-sys.path.append('../')
-from Recommendation import Movie, movies, users
+# Cargar datos de users.txt
+users_data = pd.read_csv("data/users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
+users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occupation']) for _, row in users_data.iterrows()}
 
 def rate_movie(user_id, movie_id, rating):
     # Define the file path
