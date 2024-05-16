@@ -55,13 +55,7 @@ users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occu
 ratings_data = pd.read_csv("data/u1_base.txt", sep='\t', names=['UserID', 'MovieID', 'Rating'], encoding="utf-8")
 ratings = {(row['UserID'], row['MovieID']): Rating(row['UserID'], row['MovieID'], row['Rating']) for _, row in ratings_data.iterrows()}
 
-# Cargar datos de users_types.txt
-user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
-user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
 
-# Cargar datos de users_types_assigned.txt
-user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
-user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
 
 
 
@@ -84,6 +78,15 @@ if uid is not None:
 
   #Recomendación Demográfica
   if rec_type == "Demographic":
+
+    # Cargar datos de users_types.txt
+    user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+    user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
+
+    # Cargar datos de users_types_assigned.txt
+    user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
+    user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
+    
     if uid in user_types_assigned:
         type_id = user_types_assigned[uid]
         user_type = user_types[type_id]
