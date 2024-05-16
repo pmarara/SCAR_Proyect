@@ -39,6 +39,35 @@ class User_type:
         self.occupation = occupation
         self.genres = genres
 
+class Preference:
+    def __init__(self, user_id, genres):
+        self.user_id = user_id
+        self.genres = genres
+
+def selectMovies(genre_weights):
+    # Retrieve list of movies already rated by the user
+    rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
+        
+    # Calcular ratios para cada película
+    for movie_id, movie in movies.items():
+        if movie_id not in rated_movies:  # Check if user hasn't watched the movie
+            movie_genres = np.array(movie.genres)
+                
+            # normalization by sum of genre weights
+            normalization_factor = np.sum(genre_weights)
+                
+            # # normalization by sum of genre weights and sum of movie genres (pro: normalization not only by genre weights but also by movie genres; con: very low ratios)
+            # normalization_factor = np.sum(genre_weights) * np.sum(movie_genres)
+                
+            # # normalization by maximum scalar product (pro: normalization not only by genre weights but also by movie genres; con: a lot of movies with ratio 1)
+            # num_genres = np.sum(movie_genres)
+            # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
+
+            ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
+            recommendations.append(Recommendation(movie, round(ratio, 4)))
+    return recommendations
+
+
 # Cargar datos de genre.txt
 genre_data = pd.read_csv("data/genre.txt", sep='\t', names=['GenreID', 'GenreName'], encoding="utf-8")
 genres = {row['GenreID']: Genre(row['GenreID'], row['GenreName']) for _, row in genre_data.iterrows()}
@@ -79,6 +108,8 @@ if uid is not None:
   #Recomendación Demográfica
   if rec_type == "Demographic":
 
+    recommendations = []
+
     # Cargar datos de users_types.txt
     user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
     user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
@@ -86,35 +117,31 @@ if uid is not None:
     # Cargar datos de users_types_assigned.txt
     user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
     user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
-    
+
     if uid in user_types_assigned:
         type_id = user_types_assigned[uid]
         user_type = user_types[type_id]
         genre_weights = np.array(user_type.genres)
+        recommendations = selectMovies(genre_weights)
         
-        # Retrieve list of movies already rated by the user
-        rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
         
-        # Calcular ratios para cada película
-        for movie_id, movie in movies.items():
-            if movie_id not in rated_movies:  # Check if user hasn't watched the movie
-                movie_genres = np.array(movie.genres)
-                
-                # normalization by sum of genre weights
-                normalization_factor = np.sum(genre_weights)
-                
-                # # normalization by sum of genre weights and sum of movie genres (pro: normalization not only by genre weights but also by movie genres; con: very low ratios)
-                # normalization_factor = np.sum(genre_weights) * np.sum(movie_genres)
-                
-                # # normalization by maximum scalar product (pro: normalization not only by genre weights but also by movie genres; con: a lot of movies with ratio 1)
-                # num_genres = np.sum(movie_genres)
-                # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
+  #Recomendación Basado en contenido
+  if rec_type == "Based on content":
 
-                ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
-                recommendations.append(Recommendation(movie, ratio))
+    recommendations = []
+
+    # Cargar datos de vectoresbasadosContenido.txt
+    preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+    preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
+
+    if uid in preferences_based_on_content:
+
+        genre_weights = np.array(preferences_based_on_content[uid].genres)
+        recommendations = selectMovies( genre_weights)
         
-        # Ordenar por ratio y obtener las 5 películas superiores
-        recommendations.sort(key=lambda x: x.ratio, reverse=True)
+
+  # Ordenar por ratio y obtener las 5 películas superiores
+  recommendations.sort(key=lambda x: x.ratio, reverse=True)
 
         
     
