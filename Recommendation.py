@@ -39,6 +39,13 @@ class User_type:
         self.occupation = occupation
         self.genres = genres
 
+
+class Recommendation:
+    def __init__(self, movie, ratio, average_rating = 0):
+        self.movie = movie
+        self.ratio = ratio
+        self.average_rating = average_rating
+
 class Preference:
     def __init__(self, user_id, genres):
         self.user_id = user_id
@@ -64,8 +71,42 @@ def selectMovies(genre_weights):
             # normalization_factor = np.sum(np.sort(genre_weights)[-num_genres:])
 
             ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
-            recommendations.append(Recommendation(movie, round(ratio, 4)))
+            recommendations.append(Recommendation(movie, round(ratio, 4), None))
     return recommendations
+
+def selectCollaborativeMovies():
+    if uid in neighbors:
+            user_neighbors = neighbors[uid]
+            neighbor_ratings = {}
+
+            for neighbor_id, affinity in user_neighbors:
+                for (user_id, movie_id), rating in ratings.items():
+                    if user_id == neighbor_id:
+                        if movie_id not in neighbor_ratings:
+                            neighbor_ratings[movie_id] = []
+                        neighbor_ratings[movie_id].append((affinity, rating.rating))
+
+             # Obtener las películas que ya ha visto el usuario
+            user_rated_movies = {movie_id for (user_id, movie_id), rating in ratings.items() if user_id == uid}
+
+            for movie_id, ratings_list in neighbor_ratings.items():
+                if movie_id not in user_rated_movies:
+                    average_affinity = (sum(affinity for affinity, _ in ratings_list)/len(ratings_list))
+                    average_rating = (sum(rating for _, rating in ratings_list)/len(ratings_list)) / 5
+                    ratio = (average_affinity*5 + average_rating*5 + len(ratings_list) / len(user_neighbors)) / 11
+                    recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
+
+    return recommendations
+
+def load_neighbors(path):
+    neighbors_data = {}
+    with open(path, 'r') as file:
+        for line in file:
+            parts = line.strip().split('\t')
+            user_id = int(parts[0])
+            neighbors = [(int(neighbor.split(':')[0]), float(neighbor.split(':')[1])) for neighbor in parts[1:]]
+            neighbors_data[user_id] = neighbors
+    return neighbors_data
 
 
 # Cargar datos de genre.txt
@@ -97,70 +138,70 @@ rec_type = st.selectbox("Pick type of recommendation", ["Demographic", "Based on
   
 if uid is not None:
 
-  recommendations = []
-
-  class Recommendation:
-        def __init__(self, movie, ratio):
-            self.movie = movie
-            self.ratio = ratio
-
-
-  #Recomendación Demográfica
-  if rec_type == "Demographic":
-
     recommendations = []
 
-    # Cargar datos de users_types.txt
-    user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
-    user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
+    #Recomendación Demográfica
+    if rec_type == "Demographic":
 
-    # Cargar datos de users_types_assigned.txt
-    user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
-    user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
+        recommendations = []
 
-    if uid in user_types_assigned:
-        type_id = user_types_assigned[uid]
-        user_type = user_types[type_id]
-        genre_weights = np.array(user_type.genres)
-        recommendations = selectMovies(genre_weights)
+        # Cargar datos de users_types.txt
+        user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+        user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
+
+        # Cargar datos de users_types_assigned.txt
+        user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
+        user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
+
+        if uid in user_types_assigned:
+            type_id = user_types_assigned[uid]
+            user_type = user_types[type_id]
+            genre_weights = np.array(user_type.genres)
+            recommendations = selectMovies(genre_weights)
         
         
-  #Recomendación Basado en contenido
-  if rec_type == "Based on content":
+    #Recomendación Basado en contenido
+    elif rec_type == "Based on content":
 
-    recommendations = []
+        recommendations = []
 
-    # Cargar datos de vectoresbasadosContenido.txt
-    preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
-    preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
+        # Cargar datos de vectoresbasadosContenido.txt
+        preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+        preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
 
-    if uid in preferences_based_on_content:
+        if uid in preferences_based_on_content:
 
-        genre_weights = np.array(preferences_based_on_content[uid].genres)
-        recommendations = selectMovies( genre_weights)
-        
+            genre_weights = np.array(preferences_based_on_content[uid].genres)
+            recommendations = selectMovies( genre_weights)
+            
 
-  # Ordenar por ratio y obtener las 5 películas superiores
-  recommendations.sort(key=lambda x: x.ratio, reverse=True)
+    elif rec_type == "Collaborative":
 
-        
+        recommendations = []
+
+        neighbors = load_neighbors('data/Vecinos.txt')
+
+        recommendations = selectCollaborativeMovies()
+      
+
+    # Ordenar por ratio y obtener las 5 películas superiores
+    recommendations.sort(key=lambda x: x.ratio, reverse=True)
+
     
-    
-    
-  for i, r in enumerate(recommendations[:5]):
-    card(
-      key="Recommendation " + str(i),
-      title=r.movie.title_year,
-      text="Ratio: " + str(r.ratio),
-      styles={
-          "card": {
-            "width": "700px",
-            "height": "150px",
-            "margin": "0px",
-            "box-shadow": "none",
-        },
-          "title": {
-            "font-size": "1.75em",
-        }
-      }  
-    )
+    for i, r in enumerate(recommendations[:5]):
+        card(
+            key="Recommendation " + str(i),
+            title=r.movie.title_year,
+             text=f"Ratio: {r.ratio:.4f}\n\nAverage Rating of Neighbors: {r.average_rating:.2f}" if r.average_rating is not None else f"Ratio: {r.ratio:.4f}",
+            styles={
+            "card": {
+                "width": "700px",
+                "height": "150px",
+                "margin": "0px",
+                "box-shadow": "none",
+            },
+            "title": {
+                "font-size": "1.75em",
+            }
+            }  
+        )
