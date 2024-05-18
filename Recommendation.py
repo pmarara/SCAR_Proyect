@@ -7,6 +7,11 @@ from streamlit_card import card
 import numpy as np
 from scipy.stats import pearsonr
 
+MIN_NEIGHBORS = 10
+MAX_NEIGHBORS = 30
+AFFINITY_THRESHOLD = 0.85
+
+
 class Genre:
     def __init__(self, genre_id, genre_name):
         self.genre_id = genre_id
@@ -101,11 +106,43 @@ def selectMovies(rec_type):
     recommendations.sort(key=lambda x: x.ratio, reverse=True)
     return recommendations[:5]
 
+def calculate_new_user_neighbors(user_id, user_preferences):
+
+    print("Vecinos recalculados")
+    # Calcular el coeficiente de correlación de Pearson para el nuevo usuario
+    new_user_neighbors = []
+
+    for other_user_id, other_preferences in preferences_collaborative.items():
+        if other_user_id != user_id:
+            correlation, _ = pearsonr(user_preferences, other_preferences.genres)
+            new_user_neighbors.append((other_user_id, round(correlation, 4)))
+
+    # Ordenar los vecinos por afinidad (mayor correlación)
+    new_user_neighbors.sort(key=lambda x: x[1], reverse=True)
+
+    # Filtrar los vecinos según el umbral y el rango de número de vecinos
+    filtered_neighbors = []
+    for neighbor_id, correlation in new_user_neighbors:
+        if len(filtered_neighbors) < MIN_NEIGHBORS or (len(filtered_neighbors) < MAX_NEIGHBORS and correlation >= AFFINITY_THRESHOLD):
+            filtered_neighbors.append((neighbor_id, correlation))
+        else:
+            break
+
+    # Leer y actualizar los datos de Vecinos.txt
+    with open('data/Vecinos.txt', 'r') as file:
+        lines = file.readlines()
+    
+    with open('data/Vecinos.txt', 'w') as file:
+        for line in lines:
+            if line.startswith(str(user_id) + '\t'):
+                neighbors_str = '\t'.join([f"{neighbor_id}:{correlation}" for neighbor_id, correlation in filtered_neighbors])
+                file.write(f"{user_id}\t{neighbors_str}\n")
+            else:
+                file.write(line)
+    
+
+
 def calculate_new_group_neighbors(group_preferences):
-    # Minimum and maximum number of neighbors
-    min_neighbors = 10
-    max_neighbors = 30
-    affinity_threshold = 0.85
 
     # Calculate Pearson correlation coefficient for the new group
     new_group_neighbors = []
@@ -123,7 +160,7 @@ def calculate_new_group_neighbors(group_preferences):
     # Filtrar los vecinos según el umbral y el rango de número de vecinos
     filtered_neighbors = []
     for neighbor_id, correlation in new_group_neighbors:
-        if len(filtered_neighbors) < min_neighbors or (len(filtered_neighbors) < max_neighbors and correlation >= affinity_threshold):
+        if len(filtered_neighbors) < MIN_NEIGHBORS or (len(filtered_neighbors) < MAX_NEIGHBORS and correlation >= AFFINITY_THRESHOLD):
             filtered_neighbors.append((neighbor_id, correlation))
         else:
             break
@@ -133,6 +170,10 @@ def calculate_new_group_neighbors(group_preferences):
 
 def selectGroupColaborativeMovies():
     recommendations = []
+
+    for i in group_ids:
+        calculate_new_user_neighbors(i, preferences_collaborative[i].genres) 
+
     preferences = np.mean([preferences_collaborative[uid].genres for uid in group_ids if uid in preferences_collaborative], axis=0)
     group_neighbors = calculate_new_group_neighbors(preferences)
     neighbor_ratings = {}
@@ -157,6 +198,7 @@ def selectGroupColaborativeMovies():
     return recommendations[:5]
 
 def selectCollaborativeMovies():
+    calculate_new_user_neighbors(uid, preferences_collaborative[uid].genres)
     recommendations = []
     neighbors = load_neighbors('data/Vecinos.txt')
     if uid in neighbors:
