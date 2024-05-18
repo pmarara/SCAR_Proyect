@@ -51,7 +51,19 @@ class Preference:
         self.user_id = user_id
         self.genres = genres
 
-def selectMovies(genre_weights):
+def selectMovies(rec_type):
+    recommendations = []
+    
+    if rec_type == "Demographic":
+        if uid in user_types_assigned:
+            type_id = user_types_assigned[uid]
+            user_type = user_types[type_id]
+            genre_weights = np.array(user_type.genres)
+            
+    elif rec_type == "Based on content":
+        if uid in preferences_based_on_content:
+            genre_weights = np.array(preferences_based_on_content[uid].genres)
+            
     # Retrieve list of movies already rated by the user
     rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
         
@@ -75,6 +87,8 @@ def selectMovies(genre_weights):
     return recommendations
 
 def selectCollaborativeMovies():
+    recommendations = []
+    neighbors = load_neighbors('data/Vecinos.txt')
     if uid in neighbors:
             user_neighbors = neighbors[uid]
             neighbor_ratings = {}
@@ -97,6 +111,18 @@ def selectCollaborativeMovies():
                     recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
 
     return recommendations
+
+def hybrid_recommendation():
+    final_recommendations = []
+    
+    selected_methods = st.multiselect(
+        "Select two methods to combine:",
+        ["Demographic", "Based on content", "Collaborative"],
+        default=["Demographic", "Based on content"],
+        max_selections=2
+    )
+    
+    return final_recommendations
 
 def load_neighbors(path):
     neighbors_data = {}
@@ -125,7 +151,17 @@ users = {row['UserID']: User(row['UserID'], row['Age'], row['Gender'], row['Occu
 ratings_data = pd.read_csv("data/u1_base.txt", sep='\t', names=['UserID', 'MovieID', 'Rating'], encoding="utf-8")
 ratings = {(row['UserID'], row['MovieID']): Rating(row['UserID'], row['MovieID'], row['Rating']) for _, row in ratings_data.iterrows()}
 
+# Cargar datos de users_types.txt
+user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
 
+# Cargar datos de users_types_assigned.txt
+user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
+user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
+
+# Cargar datos de vectoresbasadosContenido.txt
+preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
 
 st.title("Welcome to the Palu movie recommender!")  
 
@@ -138,57 +174,14 @@ if uid is not None:
 
     recommendations = []
 
-    #Recomendación Demográfica
     if rec_type == "Demographic":
-
-        recommendations = []
-
-        # Cargar datos de users_types.txt
-        user_types_data = pd.read_csv("data/user_types.txt", sep='\t', names=['TypeID', 'MinAge', 'MaxAge', 'Gender', 'Occupation'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
-        user_types = {row['TypeID']: User_type(row['TypeID'], row['MinAge'], row['MaxAge'], row['Gender'], row['Occupation'], row.iloc[5:24]) for _, row in user_types_data.iterrows()}
-
-        # Cargar datos de users_types_assigned.txt
-        user_types_assigned_data = pd.read_csv("data/user_types_assigned.txt", sep='\t', names=['UserID', 'TypeID'], encoding="utf-8")
-        user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_assigned_data.iterrows()}
-
-        if uid in user_types_assigned:
-            type_id = user_types_assigned[uid]
-            user_type = user_types[type_id]
-            genre_weights = np.array(user_type.genres)
-            recommendations = selectMovies(genre_weights)
-        
-        
-    #Recomendación Basado en contenido
+        recommendations = selectMovies(rec_type)
     elif rec_type == "Based on content":
-
-        recommendations = []
-
-        # Cargar datos de vectoresbasadosContenido.txt
-        preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
-        preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
-
-        if uid in preferences_based_on_content:
-
-            genre_weights = np.array(preferences_based_on_content[uid].genres)
-            recommendations = selectMovies( genre_weights)
-            
-
+        recommendations = selectMovies(rec_type)
     elif rec_type == "Collaborative":
-
-        recommendations = []
-
-        neighbors = load_neighbors('data/Vecinos.txt')
-
         recommendations = selectCollaborativeMovies()
-        
     elif rec_type == "Hybrid":
-        hybrid_methods = st.multiselect(
-            "Select two methods to combine:",
-            ["Demographic", "Based on content", "Collaborative"],
-            default=["Demographic", "Based on content"],
-            max_selections=2
-        )
-      
+        recommendations = hybrid_recommendation()
 
     # Ordenar por ratio y obtener las 5 películas superiores
     recommendations.sort(key=lambda x: x.ratio, reverse=True)
