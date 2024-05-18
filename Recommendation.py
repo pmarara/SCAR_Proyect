@@ -84,7 +84,10 @@ def selectMovies(rec_type):
 
             ratio = np.dot(genre_weights, movie_genres) / normalization_factor # Normalización
             recommendations.append(Recommendation(movie, round(ratio, 4), None))
-    return recommendations
+
+    # Ordenar por ratio y obtener las 5 películas superiores
+    recommendations.sort(key=lambda x: x.ratio, reverse=True)
+    return recommendations[:5]
 
 def selectCollaborativeMovies():
     recommendations = []
@@ -109,20 +112,36 @@ def selectCollaborativeMovies():
                     average_rating = (sum(rating for _, rating in ratings_list)/len(ratings_list)) / 5
                     ratio = (average_affinity*5 + average_rating*5 + len(ratings_list) / len(user_neighbors)) / 11
                     recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
-
-    return recommendations
+    # Ordenar por ratio y obtener las 5 películas superiores
+    recommendations.sort(key=lambda x: x.ratio, reverse=True)
+    return recommendations[:5]
 
 def hybrid_recommendation():
     final_recommendations = []
+    recommendations_count = {}
     
-    selected_methods = st.multiselect(
-        "Select two methods to combine:",
-        ["Demographic", "Based on content", "Collaborative"],
-        default=["Demographic", "Based on content"],
-        max_selections=2
-    )
+
+    for method in selected_methods:
+        method_recs = selectMovies(method) if method in ["Demographic", "Based on content"] else selectCollaborativeMovies()
+
+        for rec in method_recs:
+            if rec.movie.movie_id not in recommendations_count:
+                recommendations_count[rec.movie.movie_id] = (rec, 1)
+            else:
+                _, count = recommendations_count[rec.movie.movie_id]
+                recommendations_count[rec.movie.movie_id] = (rec, count + 1)
+        
+
+    for rec, count in recommendations_count.values():
+        new_ratio = (rec.ratio*3 + (count / len(selected_methods)))/4
+        final_recommendations.append(Recommendation(rec.movie, round(new_ratio, 4), None))
     
-    return final_recommendations
+    # Ordenar por ratio y obtener las 5 películas superiores
+    final_recommendations.sort(key=lambda x: x.ratio, reverse=True)
+    return final_recommendations[:5]
+
+
+
 
 def load_neighbors(path):
     neighbors_data = {}
@@ -133,6 +152,9 @@ def load_neighbors(path):
             neighbors = [(int(neighbor.split(':')[0]), float(neighbor.split(':')[1])) for neighbor in parts[1:]]
             neighbors_data[user_id] = neighbors
     return neighbors_data
+
+def hybrid():
+    recommendations = hybrid_recommendation()   
 
 
 # Cargar datos de genre.txt
@@ -181,13 +203,18 @@ if uid is not None:
     elif rec_type == "Collaborative":
         recommendations = selectCollaborativeMovies()
     elif rec_type == "Hybrid":
-        recommendations = hybrid_recommendation()
 
-    # Ordenar por ratio y obtener las 5 películas superiores
-    recommendations.sort(key=lambda x: x.ratio, reverse=True)
+        selected_methods = st.multiselect(
+        "Select two methods to combine:",
+        ["Demographic", "Based on content", "Collaborative"],
+        default=["Demographic", "Based on content"],
+        max_selections=2,
+        on_change = hybrid
+        )
+        recommendations = hybrid_recommendation()   
 
     
-    for i, r in enumerate(recommendations[:5]):
+    for i, r in enumerate(recommendations):
         card(
             key="Recommendation " + str(i),
             title=r.movie.title_year,
