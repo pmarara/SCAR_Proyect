@@ -115,7 +115,7 @@ def calculate_new_user_neighbors(user_id, user_preferences):
     for other_user_id, other_preferences in preferences_collaborative.items():
         if other_user_id != user_id:
             correlation, _ = pearsonr(user_preferences, other_preferences.genres)
-            new_user_neighbors.append((other_user_id, round(correlation, 4)))
+            new_user_neighbors.append((other_user_id, correlation))
 
     # Ordenar los vecinos por afinidad (mayor correlación)
     new_user_neighbors.sort(key=lambda x: x[1], reverse=True)
@@ -135,10 +135,12 @@ def calculate_new_user_neighbors(user_id, user_preferences):
     with open('data/Vecinos.txt', 'w') as file:
         for line in lines:
             if line.startswith(str(user_id) + '\t'):
-                neighbors_str = '\t'.join([f"{neighbor_id}:{correlation}" for neighbor_id, correlation in filtered_neighbors])
+                neighbors_str = '\t'.join([f"{neighbor_id}:{round(correlation,4)}" for neighbor_id, correlation in filtered_neighbors])
                 file.write(f"{user_id}\t{neighbors_str}\n")
             else:
                 file.write(line)
+    
+    
     
 
 
@@ -152,7 +154,7 @@ def calculate_new_group_neighbors(group_preferences):
         if user_id not in group_ids:
             other_user_pref = preference.genres
             correlation, _ = pearsonr(group_preferences, other_user_pref)
-            new_group_neighbors.append((user_id, round(correlation,4)))
+            new_group_neighbors.append((user_id, correlation))
     
     # Sort neighbors by affinity (higher correlation)
     new_group_neighbors.sort(key=lambda x: x[1], reverse=True)
