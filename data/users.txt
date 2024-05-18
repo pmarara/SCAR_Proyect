@@ -941,4 +941,3 @@
 941	20	M	student
 942	48	F	librarian
 943	22	M	student
-944	25	F	scientist

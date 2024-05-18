@@ -127,8 +127,6 @@ ratings = {(row['UserID'], row['MovieID']): Rating(row['UserID'], row['MovieID']
 
 
 
-
-
 st.title("Welcome to the Palu movie recommender!")  
 
 highest_id = len(users)
