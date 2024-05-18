@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import csv
 import numpy as np
+from scipy.stats import pearsonr
 
 class User:
     def __init__(self, user_id, age, gender, occupation):
@@ -28,6 +29,45 @@ def load_user_types(filepath):
                 'profesion': row[4].lower()  # Asegurarse de que todo está en minúsculas para la comparación
             })
     return types
+
+def calculate_new_user_neighbors(new_user_id, new_user_preferences):
+    # Parámetros
+    min_neighbors = 10
+    max_neighbors = 30
+    affinity_threshold = 0.85
+
+    # Cargar los datos de VectoresColaborativos.txt
+    data = pd.read_csv('data/VectoresColaborativos.txt', sep='\t', header=None)
+    data.columns = ['UserID'] + [f'Genre_{i}' for i in range(1, 20)]
+
+    # Obtener la lista de usuarios y las preferencias
+    user_ids = data['UserID'].values
+    preferences = data.iloc[:, 1:].values
+
+    # Calcular el coeficiente de correlación de Pearson para el nuevo usuario
+    new_user_neighbors = []
+    
+    for i, user_id in enumerate(user_ids):
+        if user_id != new_user_id:
+            other_user_pref = preferences[i]
+            correlation, _ = pearsonr(new_user_preferences, other_user_pref)
+            new_user_neighbors.append((user_id, correlation))
+    
+    # Ordenar los vecinos por afinidad (mayor correlación)
+    new_user_neighbors.sort(key=lambda x: x[1], reverse=True)
+    
+    # Filtrar los vecinos según el umbral y el rango de número de vecinos
+    filtered_neighbors = []
+    for neighbor_id, correlation in new_user_neighbors:
+        if len(filtered_neighbors) < min_neighbors or (len(filtered_neighbors) < max_neighbors and correlation >= affinity_threshold):
+            filtered_neighbors.append((neighbor_id, correlation))
+        else:
+            break
+
+    # Guardar los vecinos del nuevo usuario en el archivo Vecinos.txt
+    with open('data/Vecinos.txt', 'a') as f:
+        neighbors_str = '\t'.join([f"{neighbor_id}:{correlation:.4f}" for neighbor_id, correlation in filtered_neighbors])
+        f.write(f"\n{new_user_id}\t{neighbors_str}")
 
 def signupuser(id, age, sex, occupation, preferences):
 
@@ -61,9 +101,12 @@ def signupuser(id, age, sex, occupation, preferences):
     top_indices = preferences_array.argsort()[-6:][::-1]
     top_preferences = np.zeros(19)
     top_preferences[top_indices] = preferences_array[top_indices]
-    preferences_str = '\t'.join(map(str, top_preferences))  # Convertir a enteros y luego a strings
+    preferences_str = '\t'.join(map(str, top_preferences.astype(int)))  # Convertir a enteros y luego a strings
     with open('data/VectoresBasadosContenido.txt', 'a', newline='') as file:
         file.write(f"{id}\t{preferences_str}\n")
+
+    # Calcular vecinos del nuevo usuario
+    calculate_new_user_neighbors(id, preferences_array)
 
     # Actualizar la lista de usuarios
     users_data = pd.read_csv("data/users.txt", sep='\t', names=['UserID', 'Age', 'Gender', 'Occupation'], encoding="utf-8")
