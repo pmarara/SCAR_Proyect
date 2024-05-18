@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from streamlit_card import card
 import numpy as np
+from scipy.stats import pearsonr
 
 class Genre:
     def __init__(self, genre_id, genre_name):
@@ -61,11 +62,22 @@ def selectMovies(rec_type):
             genre_weights = np.array(user_type.genres)
             
     elif rec_type == "Based on content":
-        if uid in preferences_based_on_content:
-            genre_weights = np.array(preferences_based_on_content[uid].genres)
-            
-    # Retrieve list of movies already rated by the user
-    rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
+        if rec_mode == "Single User":
+            if uid in preferences_based_on_content:
+                genre_weights = np.array(preferences_based_on_content[uid].genres)
+        else:
+            # calculate average of collaborative preferences
+            preferences = np.mean([preferences_collaborative[uid].genres for uid in group_ids if uid in preferences_collaborative], axis=0)
+            # make all elements 0 except of highest 6
+            genre_weights = np.zeros_like(preferences)
+            top_indices = np.argsort(preferences)[-6:]
+            genre_weights[top_indices] = preferences[top_indices]            
+
+    if rec_mode == "Single User":
+        rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id == uid]
+    else:
+        # Collect all movie IDs rated by any user in the group
+        rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id in group_ids]
         
     # Calcular ratios para cada película
     for movie_id, movie in movies.items():
@@ -89,29 +101,84 @@ def selectMovies(rec_type):
     recommendations.sort(key=lambda x: x.ratio, reverse=True)
     return recommendations[:5]
 
+def calculate_new_group_neighbors(group_preferences):
+    # Minimum and maximum number of neighbors
+    min_neighbors = 10
+    max_neighbors = 30
+    affinity_threshold = 0.85
+
+    # Calculate Pearson correlation coefficient for the new group
+    new_group_neighbors = []
+
+    # Iterating over each user and their preferences
+    for user_id, preference in preferences_collaborative.items():
+        if user_id not in group_ids:
+            other_user_pref = preference.genres
+            correlation, _ = pearsonr(group_preferences, other_user_pref)
+            new_group_neighbors.append((user_id, round(correlation,4)))
+    
+    # Sort neighbors by affinity (higher correlation)
+    new_group_neighbors.sort(key=lambda x: x[1], reverse=True)
+    
+    # Filtrar los vecinos según el umbral y el rango de número de vecinos
+    filtered_neighbors = []
+    for neighbor_id, correlation in new_group_neighbors:
+        if len(filtered_neighbors) < min_neighbors or (len(filtered_neighbors) < max_neighbors and correlation >= affinity_threshold):
+            filtered_neighbors.append((neighbor_id, correlation))
+        else:
+            break
+
+    # Return filtered list, limited to the max number of neighbors
+    return filtered_neighbors
+
+def selectGroupColaborativeMovies():
+    recommendations = []
+    preferences = np.mean([preferences_collaborative[uid].genres for uid in group_ids if uid in preferences_collaborative], axis=0)
+    group_neighbors = calculate_new_group_neighbors(preferences)
+    neighbor_ratings = {}
+    for neighbor_id, affinity in group_neighbors:
+        for (user_id, movie_id), rating in ratings.items():
+            if user_id == neighbor_id:
+                if movie_id not in neighbor_ratings:
+                    neighbor_ratings[movie_id] = []
+                neighbor_ratings[movie_id].append((affinity, rating.rating))
+     
+    group_rated_movies = [rating.movie_id for rating in ratings.values() if rating.user_id in group_ids]
+    
+    for movie_id, ratings_list in neighbor_ratings.items():
+            if movie_id not in group_rated_movies:
+                average_affinity = (sum(affinity for affinity, _ in ratings_list)/len(ratings_list))
+                average_rating = (sum(rating for _, rating in ratings_list)/len(ratings_list)) / 5
+                ratio = (average_affinity*5 + average_rating*5 + len(ratings_list) / len(group_neighbors)) / 11
+                recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
+                
+    # Ordenar por ratio y obtener las 5 películas superiores
+    recommendations.sort(key=lambda x: x.ratio, reverse=True)
+    return recommendations[:5]
+
 def selectCollaborativeMovies():
     recommendations = []
     neighbors = load_neighbors('data/Vecinos.txt')
     if uid in neighbors:
-            user_neighbors = neighbors[uid]
-            neighbor_ratings = {}
+        user_neighbors = neighbors[uid]
+        neighbor_ratings = {}
 
-            for neighbor_id, affinity in user_neighbors:
-                for (user_id, movie_id), rating in ratings.items():
-                    if user_id == neighbor_id:
-                        if movie_id not in neighbor_ratings:
-                            neighbor_ratings[movie_id] = []
-                        neighbor_ratings[movie_id].append((affinity, rating.rating))
+        for neighbor_id, affinity in user_neighbors:
+            for (user_id, movie_id), rating in ratings.items():
+                if user_id == neighbor_id:
+                    if movie_id not in neighbor_ratings:
+                        neighbor_ratings[movie_id] = []
+                    neighbor_ratings[movie_id].append((affinity, rating.rating))
 
-             # Obtener las películas que ya ha visto el usuario
-            user_rated_movies = {movie_id for (user_id, movie_id), rating in ratings.items() if user_id == uid}
+            # Obtener las películas que ya ha visto el usuario
+        user_rated_movies = {movie_id for (user_id, movie_id), rating in ratings.items() if user_id == uid}
 
-            for movie_id, ratings_list in neighbor_ratings.items():
-                if movie_id not in user_rated_movies:
-                    average_affinity = (sum(affinity for affinity, _ in ratings_list)/len(ratings_list))
-                    average_rating = (sum(rating for _, rating in ratings_list)/len(ratings_list)) / 5
-                    ratio = (average_affinity*5 + average_rating*5 + len(ratings_list) / len(user_neighbors)) / 11
-                    recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
+        for movie_id, ratings_list in neighbor_ratings.items():
+            if movie_id not in user_rated_movies:
+                average_affinity = (sum(affinity for affinity, _ in ratings_list)/len(ratings_list))
+                average_rating = (sum(rating for _, rating in ratings_list)/len(ratings_list)) / 5
+                ratio = (average_affinity*5 + average_rating*5 + len(ratings_list) / len(user_neighbors)) / 11
+                recommendations.append(Recommendation(movies[movie_id], round(ratio, 4), average_rating*5))
     # Ordenar por ratio y obtener las 5 películas superiores
     recommendations.sort(key=lambda x: x.ratio, reverse=True)
     return recommendations[:5]
@@ -120,28 +187,32 @@ def hybrid_recommendation():
     final_recommendations = []
     recommendations_count = {}
     
-
     for method in selected_methods:
-        method_recs = selectMovies(method) if method in ["Demographic", "Based on content"] else selectCollaborativeMovies()
-
+        if method in ["Demographic", "Based on content"]:
+            method_recs = selectMovies(method)
+        elif rec_mode == "Single User":
+            method_recs = selectCollaborativeMovies()
+        else:
+            method_recs= selectGroupColaborativeMovies()
+            
         for rec in method_recs:
             if rec.movie.movie_id not in recommendations_count:
                 recommendations_count[rec.movie.movie_id] = (rec, 1)
             else:
-                _, count = recommendations_count[rec.movie.movie_id]
+                saved_rec, count = recommendations_count[rec.movie.movie_id]
+                if rec.ratio < saved_rec.ratio:
+                    rec.ratio = saved_rec.ratio
+                
                 recommendations_count[rec.movie.movie_id] = (rec, count + 1)
         
 
     for rec, count in recommendations_count.values():
-        new_ratio = (rec.ratio*3 + (count / len(selected_methods)))/4
+        new_ratio = (rec.ratio*9 + (count / len(selected_methods)))/10
         final_recommendations.append(Recommendation(rec.movie, round(new_ratio, 4), None))
     
     # Ordenar por ratio y obtener las 5 películas superiores
     final_recommendations.sort(key=lambda x: x.ratio, reverse=True)
     return final_recommendations[:5]
-
-
-
 
 def load_neighbors(path):
     neighbors_data = {}
@@ -185,14 +256,28 @@ user_types_assigned = {row['UserID']: row['TypeID'] for _, row in user_types_ass
 preferences_based_on_content_data = pd.read_csv("data/VectoresBasadosContenido.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
 preferences_based_on_content = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_based_on_content_data.iterrows()}
 
+# Cargar datos de VectoresColaborativos.txt
+preferences_collaborative_data = pd.read_csv("data/VectoresColaborativos.txt", sep='\t', names=['UserID'] + [f'Genre_{i}' for i in range(1, 20)], encoding="utf-8")
+preferences_collaborative = {row['UserID']: Preference(row['UserID'], row.iloc[1:20] ) for _, row in preferences_collaborative_data.iterrows()}
+
 st.title("Welcome to the Palu movie recommender!")  
 
-highest_id = len(users)
-uid = st.number_input("Please enter your User ID:", 1, highest_id, None)
+rec_mode = st.radio("Select mode:", ("Single User", "Group"))
 
-rec_type = st.selectbox("Pick type of recommendation", ["Demographic", "Based on content", "Collaborative", "Hybrid"])
-  
-if uid is not None:
+highest_id = len(users)
+uid = None
+group_ids = []
+
+if rec_mode == "Single User":
+    uid = st.number_input("Please enter your User ID:", 1, highest_id, None)
+    rec_type = st.selectbox("Pick type of recommendation", ["Demographic", "Based on content", "Collaborative", "Hybrid"])
+
+else:
+    group_ids = st.multiselect("Select group members:", list(users.keys()))
+    rec_type = st.selectbox("Pick type of recommendation", ["Based on content", "Collaborative", "Hybrid"])
+    
+    
+if uid is not None or group_ids:
 
     recommendations = []
 
@@ -201,17 +286,23 @@ if uid is not None:
     elif rec_type == "Based on content":
         recommendations = selectMovies(rec_type)
     elif rec_type == "Collaborative":
-        recommendations = selectCollaborativeMovies()
+        if rec_mode == "Single User":
+            recommendations = selectCollaborativeMovies()
+        else:
+            recommendations = selectGroupColaborativeMovies()
     elif rec_type == "Hybrid":
 
-        selected_methods = st.multiselect(
-        "Select two methods to combine:",
-        ["Demographic", "Based on content", "Collaborative"],
-        default=["Demographic", "Based on content"],
-        max_selections=2,
-        on_change = hybrid
-        )
-        recommendations = hybrid_recommendation()   
+        if rec_mode == "Single User":
+            selected_methods = st.multiselect(
+            "Select two methods to combine:",
+            ["Demographic", "Based on content", "Collaborative"],
+            default=["Based on content", "Collaborative"],
+            max_selections=3,
+            on_change = hybrid
+            )
+        else:
+            selected_methods = ["Based on content", "Collaborative"]
+        recommendations = hybrid_recommendation()
 
     
     for i, r in enumerate(recommendations):

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 class Movie:
     def __init__(self, movie_id, genres, title_year):
@@ -48,6 +49,62 @@ def rate_movie(user_id, movie_id, rating):
     
     # Write the updated DataFrame back to the file
     updated_ratings.to_csv(filepath, sep='\t', index=False, header=False)
+
+    # Check if the user has 5 or more ratings with a score of 3 or higher
+    high_rated_movies = updated_ratings[(updated_ratings['UserID'] == user_id) & (updated_ratings['Rating'] >= 3)]
+    if len(high_rated_movies) >= 5:
+        print("Vectores recalculados")
+        # Recalculate vectors for content-based and collaborative filtering
+        recalculate_vectors(user_id, updated_ratings)
+    else:
+        print("Not enough positive ratings")
+    
+def recalculate_vectors(user_id, ratings_data):
+    # Calculate the content-based vector
+    high_rated_movies = ratings_data[(ratings_data['UserID'] == user_id) & (ratings_data['Rating'] >= 3)]
+    preference_vector = np.zeros(19)
+    
+    for _, row in high_rated_movies.iterrows():
+        movie_id = row['MovieID']
+        rating = row['Rating']
+        multiplier = rating - 2  # 3 -> 1, 4 -> 2, 5 -> 3
+        
+        # Asegurarse de que el ID de la película exista en items_data
+        if movie_id in items_data['MovieID'].values:
+            movie_genres = items_data[items_data['MovieID'] == movie_id].iloc[0, 1:20].values.astype(int)
+            preference_vector += movie_genres * multiplier
+    
+    # Normalize the vector to have a maximum value of 100
+    max_value = preference_vector.max()
+    if max_value > 0:
+        preference_vector = (preference_vector / max_value) * 100
+    
+    # Update VectoresColaborativos.txt
+    preference_vector = preference_vector.astype(int)
+    preferences_array = np.where(preference_vector == 0, 1, preference_vector)
+    preferences_str = '\t'.join(map(str, preferences_array.astype(int)))
+    update_vector_file('data/VectoresColaborativos.txt', user_id, preferences_str)
+    
+    # Update VectoresBasadosContenido.txt
+    top_indices = preference_vector.argsort()[-6:][::-1]
+    top_preferences = np.zeros(19)
+    top_preferences[top_indices] = preference_vector[top_indices]
+    preferences_str = '\t'.join(map(str, top_preferences.astype(int)))
+    update_vector_file('data/VectoresBasadosContenido.txt', user_id, preferences_str)
+
+def update_vector_file(filepath, user_id, new_preferences):
+    try:
+        with open(filepath, 'r') as file:
+            lines = file.readlines()
+        with open(filepath, 'w') as file:
+            for line in lines:
+                if line.startswith(str(user_id) + '\t'):
+                    file.write(f"{user_id}\t{new_preferences}\n")
+                else:
+                    file.write(line)
+    except FileNotFoundError:
+        with open(filepath, 'w') as file:
+            file.write(f"{user_id}\t{new_preferences}\n")
 
 st.title("Rate movies!")
 
