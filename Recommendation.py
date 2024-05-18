@@ -180,6 +180,14 @@ if uid is not None:
         neighbors = load_neighbors('data/Vecinos.txt')
 
         recommendations = selectCollaborativeMovies()
+        
+    elif rec_type == "Hybrid":
+        hybrid_methods = st.multiselect(
+            "Select two methods to combine:",
+            ["Demographic", "Based on content", "Collaborative"],
+            default=["Demographic", "Based on content"],
+            max_selections=2
+        )
       
 
     # Ordenar por ratio y obtener las 5 películas superiores
