@@ -326,16 +326,21 @@ if uid is not None or group_ids:
     recommendations = []
 
     if rec_type == "Demographic":
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("These movies are recommended to you based on your age, gender and occupation")
         recommendations = selectMovies(rec_type)
     elif rec_type == "Based on content":
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("These movies are recommended to you based on your movie ratings or your movie genre preferences specified when signing up.")
         recommendations = selectMovies(rec_type)
     elif rec_type == "Collaborative":
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("These movies are recommended to you based on the movie ratings of users with similar tastes as you.")
         if rec_mode == "Single User":
             recommendations = selectCollaborativeMovies()
         else:
             recommendations = selectGroupColaborativeMovies()
     elif rec_type == "Hybrid":
-
         if rec_mode == "Single User":
             selected_methods = st.multiselect(
             "Select two methods to combine:",
