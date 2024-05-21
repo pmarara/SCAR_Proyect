@@ -67,7 +67,7 @@ def calculate_new_user_neighbors(new_user_id, new_user_preferences):
     # Guardar los vecinos del nuevo usuario en el archivo Vecinos.txt
     with open('data/Vecinos.txt', 'a') as f:
         neighbors_str = '\t'.join([f"{neighbor_id}:{correlation:.4f}" for neighbor_id, correlation in filtered_neighbors])
-        f.write(f"\n{new_user_id}\t{neighbors_str}")
+        f.write(f"{new_user_id}\t{neighbors_str}\n")
 
 def signupuser(id, age, sex, occupation, preferences):
 
@@ -174,7 +174,8 @@ user_preferences.append(st.slider("War"))
 user_preferences.append(st.slider("Western"))
 
 if st.button("Sign up"):
-    signupuser(user_id, age, sex, occupation, user_preferences)
-
-    
-    st.success("User signed up successfully!")
+    if np.any(np.array(user_preferences) != 0):
+        signupuser(user_id, age, sex, occupation, user_preferences)
+        st.success("User signed up successfully!")
+    else:
+        st.error("Please specify your movie preferences!")
